@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: form editor di kiri, lembar A4 hidup di kanan. Lembar selalu putih (kertas); hanya chrome aplikasi yang ikut tema. */
+:root {
+  --bg: #e9eef2;
+  --panel: #ffffff;
+  --panel-2: #f4f7f9;
+  --fg: #18334b;
+  --fg-muted: #5e7485;
+  --border: #d3dee6;
+  --accent: #12618b;
+  --accent-fg: #ffffff;
+  --danger: #a8322d;
+  --ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --doc: "Lato", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1a24;
+    --panel: #16242f;
+    --panel-2: #1c2d3a;
+    --fg: #e3ecf2;
+    --fg-muted: #93a8b7;
+    --border: #2b4152;
+    --accent: #4aa3d1;
+    --accent-fg: #0b1720;
+    --danger: #e5847f;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.45 var(--ui);
+  display: grid; grid-template-columns: minmax(340px, 440px) minmax(0, 1fr);
+}
+
+/* ---------- Editor ---------- */
+.editor { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+.toolbar { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+.toolbar h1 { margin: 0; font-size: 16px; letter-spacing: .01em; }
+.toolbar .row { display: flex; flex-wrap: wrap; gap: 8px; }
+.form { overflow-y: auto; padding: 4px 16px 40px; flex: 1; min-height: 0; }
+button {
+  font: inherit; color: var(--fg); background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 11px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+button.danger { color: var(--danger); }
+button.icon { padding: 4px 8px; line-height: 1; }
+button:disabled { opacity: .35; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+details { border-bottom: 1px solid var(--border); padding: 10px 0; }
+summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.group { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
+.f { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.f > span { font-size: 12px; color: var(--fg-muted); }
+.pair { display: flex; gap: 8px; align-items: flex-end; }
+.check { display: flex; gap: 8px; align-items: center; }
+input[type=text], input[type=number], input[type=date], textarea, select {
+  font: inherit; color: var(--fg); background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0;
+}
+input[type=color] { width: 44px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); }
+textarea { resize: vertical; min-height: 60px; }
+.card { border: 1px solid var(--border); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.card-head { display: flex; align-items: center; gap: 6px; }
+.card-head b { flex: 1; font-size: 12px; color: var(--fg-muted); font-weight: 600; }
+.amt { font-variant-numeric: tabular-nums; font-weight: 600; }
+.hint { font-size: 12px; color: var(--fg-muted); margin: 0; }
+
+/* ---------- Preview ---------- */
+.preview { overflow: auto; padding: 24px; min-width: 0; }
+.warn { max-width: 210mm; margin: 0 auto 12px; padding: 8px 12px; border: 1px solid var(--danger); color: var(--danger); border-radius: 6px; font-size: 13px; }
+.sheet {
+  --a: #12618b; --d: #18334b; --t: #26394a; --m: #5e7485; --fill: #f3f7fa; --line: #d9e5ed;
+  width: 210mm; min-height: 297mm; margin: 0 auto; position: relative;
+  padding: 22.3mm 19.6mm 17.8mm; background: #fff; color: var(--t);
+  font: 9pt/1.35 var(--doc); box-shadow: 0 2px 18px rgba(16, 40, 60, .22);
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.sheet p { margin: 0 0 5pt; white-space: pre-line; overflow-wrap: anywhere; }
+.run-head { position: absolute; top: 9.1mm; right: 19.6mm; left: 19.6mm; text-align: right; font-weight: 700; font-size: 7.5pt; color: var(--a); }
+.run-foot { position: absolute; bottom: 9.6mm; right: 19.6mm; left: 19.6mm; text-align: right; font-size: 7pt; color: var(--m); }
+.sheet .brand { font-weight: 700; font-size: 9.5pt; color: var(--d); margin: 8pt 0 4pt; }
+.sheet h1 { font-size: 18pt; line-height: 1.15; color: var(--d); margin: 0 0 9pt; font-weight: 700; }
+.sheet .sub { font-size: 8.5pt; color: var(--m); margin-bottom: 10pt; }
+.sheet .lbl { font-weight: 700; font-size: 8pt; color: var(--a); }
+.meta { display: grid; grid-template-columns: 48.5% 51.5%; background: var(--fill); margin-bottom: 14pt; }
+.meta > div { padding: 6pt 6.5pt 5.5pt; min-width: 0; }
+.meta .val { font-size: 8.5pt; color: var(--d); margin: 0; }
+.parties { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 14pt; }
+.parties > div { padding: 5pt 5.5pt; min-width: 0; }
+.parties .name { font-weight: 700; font-size: 10pt; }
+.parties .det { font-size: 8pt; color: var(--m); }
+.items { width: 100%; border-collapse: collapse; table-layout: fixed; border: .6pt solid var(--line); }
+.items th { background: var(--d); color: #fff; font-size: 8pt; text-align: left; padding: 4.75pt 5.75pt; }
+.items td { font-size: 8.5pt; padding: 4.75pt 5.75pt; border-top: .6pt solid var(--line); vertical-align: top; white-space: pre-line; overflow-wrap: anywhere; }
+.items tr { break-inside: avoid; }
+.sums { display: grid; grid-template-columns: auto auto; justify-content: end; gap: 2pt 18pt; margin-top: 7pt; font-size: 8.5pt; text-align: right; font-variant-numeric: tabular-nums; }
+.total { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0 1.2em; font-weight: 700; font-size: 15pt; color: var(--a); margin: 6pt 0 5pt !important; }
+.sheet .terbilang { font-style: italic; font-size: 8pt; text-align: right; }
+.sheet h2 { font-size: 10.5pt; color: var(--a); margin: 11pt 0 5pt; font-weight: 700; break-after: avoid; }
+.pay { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: 8pt; }
+.pay td { padding: 2.5pt 4pt; vertical-align: top; white-space: pre-line; overflow-wrap: anywhere; }
+.pay td:first-child { width: 21.5%; font-weight: 700; color: var(--a); }
+.sign { margin-top: 14pt; break-inside: avoid; }
+.sign .gap { height: 19pt; }
+.sign .role { font-size: 8pt; color: var(--m); }
+
+@media (max-width: 900px) {
+  html, body { height: auto; }
+  body { display: block; }
+  .editor { border-right: 0; border-bottom: 1px solid var(--border); }
+  .form { overflow: visible; }
+  .preview { padding: 16px; }
+}
+@media print {
+  @page { size: A4; margin: 0; }
+  html, body { height: auto; background: #fff; display: block; }
+  .editor, .warn { display: none !important; }
+  .preview { padding: 0; overflow: visible; }
+  .sheet { zoom: 1 !important; box-shadow: none; margin: 0; min-height: 296mm; }
+}
+</style>
+</head>
+<body>
+<aside class="editor">
+  <div class="toolbar">
+    <h1>Invoice Generator</h1>
+    <div class="row">
+      <button class="primary" id="btnPdf">Unduh PDF</button>
+      <button id="btnExport">Ekspor data</button>
+      <button id="btnImport">Impor data</button>
+      <button class="danger" id="btnReset">Reset ke template</button>
+      <input type="file" id="fileImport" accept="application/json,.json" hidden>
+    </div>
+    <p class="hint">Perubahan tersimpan otomatis di browser ini. “Unduh PDF” langsung mengunduh invoice sebagai file PDF A4.</p>
+  </div>
+  <div class="form" id="form"></div>
+</aside>
+<main class="preview" id="preview">
+  <div class="warn" id="warn" hidden>Isi invoice melebihi satu halaman A4. PDF akan terdiri dari beberapa halaman, dengan header dan footer di tiap halaman.</div>
+  <div class="sheet" id="sheet"></div>
+</main>
+
+<script>
+const STORE_KEY = 'invoice-generator-v1';
+const todayISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+
+const makeDefault = () => ({
+  accent: '#12618b', dark: '#18334b', currency: 'Rp', currencyWord: 'rupiah',
+  header: 'TUMBUH KEMBANG  /  SWIMMING CLASS',
+  footer: 'Invoice DP 40% • Draft untuk persetujuan  |  Halaman {halaman}',
+  brand: 'TUMBUH KEMBANG', title: 'INVOICE',
+  subtitle: 'Tagihan Down Payment (DP) Pengembangan Website  •  Tumbuh Kembang Swimming Class',
+  meta: [
+    { label: 'NO. INVOICE', type: 'text', value: '[INV/XXX/2026]' },
+    { label: 'TANGGAL INVOICE', type: 'date', value: todayISO() },
+    { label: 'STATUS', type: 'text', value: 'TAGIHAN DP · BELUM MENJADI BUKTI BAYAR' },
+    { label: 'DASAR PENAGIHAN', type: 'text', value: 'SPK Nomor [NOMOR SPK]' },
+  ],
+  billTo: { label: 'DITAGIHKAN KEPADA', name: '[Nama badan usaha / Owner]', detail: '[Alamat dan kontak klien]' },
+  issuer: { label: 'PENERBIT INVOICE', name: 'Warda Laila / [Nama usaha jika ada]', detail: '[Alamat, email dan nomor telepon pengembang]' },
+  cols: ['DESKRIPSI', 'DASAR HITUNG', 'NOMINAL'],
+  items: [
+    { desc: 'Down Payment (DP) pengembangan website Tumbuh Kembang Swimming Class', mode: 'percent', percent: 40, base: 9300000, qty: 1, price: 0, amount: 0, basisText: '' },
+  ],
+  subtotalLabel: 'Subtotal', discountLabel: 'Diskon', discount: 0, taxLabel: 'PPN', taxPercent: 0,
+  totalLabel: 'TOTAL TAGIHAN DP',
+  terbilangPrefix: 'Terbilang: ', terbilangAuto: true, terbilangText: '',
+  payTitle: 'INFORMASI PEMBAYARAN',
+  pay: [
+    { label: 'Bank', value: '[NAMA BANK]' },
+    { label: 'Nama rekening', value: '[NAMA PEMILIK REKENING]' },
+    { label: 'Nomor rekening', value: '[NOMOR REKENING]' },
+    { label: 'Batas pembayaran', value: 'Sebelum pekerjaan development dimulai' },
+  ],
+  notesTitle: 'CATATAN PEMBAYARAN',
+  notes: [
+    'Invoice ini hanya untuk Termin I / DP sebesar 40% dari total nilai pengembangan Rp9.300.000. Sisa Rp5.580.000 dibayarkan dalam dua termin: Rp2.790.000 setelah demo dan penerimaan fitur inti, dan Rp2.790.000 setelah UAT serta sebelum go-live.',
+    'Biaya VPS Tencent Cloud Singapore (estimasi ± Rp153.000/bulan), domain .co.id (estimasi ± Rp300.000/tahun), biaya payment gateway dan pemakaian layanan pihak ketiga tidak termasuk invoice ini. Maintenance gratis 3 bulan sejak go-live, lalu Rp300.000/bulan.',
+    'Mohon sertakan nomor invoice dalam berita transfer dan kirimkan konfirmasi pembayaran kepada [EMAIL/WHATSAPP PENGEMBANG]. Pekerjaan dimulai setelah dana DP diterima dan kebutuhan awal disediakan. Invoice ini bukan kuitansi atau tanda lunas.',
+  ],
+  closing: 'Hormat kami,', signName: 'Warda Laila / [Nama usaha jika ada]', signRole: 'Penyedia Jasa Pengembangan Website',
+});
+
+const NEW_ROW = {
+  meta: () => ({ label: 'LABEL', type: 'text', value: '' }),
+  items: () => ({ desc: '', mode: 'fixed', percent: 0, base: 0, qty: 1, price: 0, amount: 0, basisText: '' }),
+  pay: () => ({ label: '', value: '' }),
+  notes: () => '',
+};
+
+let state = load();
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (saved && typeof saved === 'object') return Object.assign(makeDefault(), saved);
+  } catch (e) {}
+  return makeDefault();
+}
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
+
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const get = (o, p) => p.split('.').reduce((a, k) => a?.[k], o);
+function set(o, p, v) { const ks = p.split('.'); const last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
+const fmtNum = n => Math.round(n || 0).toLocaleString('id-ID');
+const money = n => (n < 0 ? '-' : '') + state.currency + fmtNum(Math.abs(n));
+const parseMoney = s => { const n = parseInt(String(s).replace(/[^\d-]/g, ''), 10); return isFinite(n) ? n : 0; };
+const fmtDec = n => String(n).replace('.', ',');
+const fmtDate = iso => { const d = new Date(iso + 'T00:00:00'); return isNaN(d) ? iso : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }); };
+
+function terbilang(n) {
+  n = Math.round(Math.abs(n));
+  if (n === 0) return 'nol';
+  const s = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+  const f = n => {
+    if (n < 12) return s[n];
+    if (n < 20) return f(n - 10) + ' belas';
+    if (n < 100) return f(Math.floor(n / 10)) + ' puluh ' + f(n % 10);
+    if (n < 200) return 'seratus ' + f(n - 100);
+    if (n < 1000) return f(Math.floor(n / 100)) + ' ratus ' + f(n % 100);
+    if (n < 2000) return 'seribu ' + f(n - 1000);
+    if (n < 1e6) return f(Math.floor(n / 1e3)) + ' ribu ' + f(n % 1e3);
+    if (n < 1e9) return f(Math.floor(n / 1e6)) + ' juta ' + f(n % 1e6);
+    if (n < 1e12) return f(Math.floor(n / 1e9)) + ' miliar ' + f(n % 1e9);
+    return f(Math.floor(n / 1e12)) + ' triliun ' + f(n % 1e12);
+  };
+  return f(n).replace(/\s+/g, ' ').trim();
+}
+
+// ---------- perhitungan ----------
+function itemAmount(it) {
+  if (it.mode === 'percent') return Math.round((it.percent || 0) / 100 * (it.base || 0));
+  if (it.mode === 'qty') return Math.round((it.qty || 0) * (it.price || 0));
+  return it.amount || 0;
+}
+function itemBasis(it) {
+  if (it.basisText) return it.basisText;
+  if (it.mode === 'percent') return `${fmtDec(it.percent || 0)}% × ${money(it.base)}`;
+  if (it.mode === 'qty') return `${fmtDec(it.qty || 0)} × ${money(it.price)}`;
+  return '—';
+}
+function totals() {
+  const subtotal = state.items.reduce((a, it) => a + itemAmount(it), 0);
+  const discount = state.discount || 0;
+  const tax = Math.round((subtotal - discount) * (state.taxPercent || 0) / 100);
+  return { subtotal, discount, tax, total: subtotal - discount + tax };
+}
+
+// ---------- editor ----------
+const text = (label, path, ph = '') => `<label class="f"><span>${label}</span><input type="text" data-path="${path}" value="${esc(get(state, path))}" placeholder="${esc(ph)}"></label>`;
+const area = (label, path, rows = 2) => `<label class="f"><span>${label}</span><textarea rows="${rows}" data-path="${path}">${esc(get(state, path))}</textarea></label>`;
+const moneyIn = (label, path) => `<label class="f"><span>${label}</span><input type="text" inputmode="numeric" data-type="money" data-path="${path}" value="${fmtNum(get(state, path))}"></label>`;
+const numIn = (label, path) => `<label class="f"><span>${label}</span><input type="number" step="any" min="0" data-type="num" data-path="${path}" value="${get(state, path) ?? 0}"></label>`;
+const rowBtns = (list, i, n, move) =>
+  (move ? `<button class="icon" data-act="up:${list}:${i}" title="Naikkan" ${i === 0 ? 'disabled' : ''}>↑</button><button class="icon" data-act="down:${list}:${i}" title="Turunkan" ${i === n - 1 ? 'disabled' : ''}>↓</button>` : '') +
+  `<button class="icon danger" data-act="del:${list}:${i}" title="Hapus">✕</button>`;
+const section = (title, body, open) => `<details ${open ? 'open' : ''} data-sec="${title}"><summary>${title}</summary><div class="group">${body}</div></details>`;
+
+function itemCard(it, i, n) {
+  const p = `items.${i}`;
+  let calc = '';
+  if (it.mode === 'percent') calc = `<div class="pair">${numIn('Persen (%)', p + '.percent')}${moneyIn('Nilai dasar', p + '.base')}</div>`;
+  else if (it.mode === 'qty') calc = `<div class="pair">${numIn('Jumlah', p + '.qty')}${moneyIn('Harga satuan', p + '.price')}</div>`;
+  else calc = moneyIn('Nominal', p + '.amount');
+  return `<div class="card">
+    <div class="card-head"><b>Item ${i + 1}</b>${rowBtns('items', i, n, true)}</div>
+    ${area('Deskripsi', p + '.desc')}
+    <label class="f"><span>Cara hitung</span><select data-path="${p}.mode" data-rerender>
+      <option value="fixed" ${it.mode === 'fixed' ? 'selected' : ''}>Nominal langsung</option>
+      <option value="percent" ${it.mode === 'percent' ? 'selected' : ''}>Persentase × nilai dasar</option>
+      <option value="qty" ${it.mode === 'qty' ? 'selected' : ''}>Jumlah × harga satuan</option>
+    </select></label>
+    ${calc}
+    ${text('Teks dasar hitung (kosongkan untuk otomatis)', p + '.basisText')}
+    <div class="pair"><span class="hint">Nominal item</span><span class="amt" data-amt="${i}"></span></div>
+  </div>`;
+}
+
+function renderEditor() {
+  const openSecs = new Set([...document.querySelectorAll('#form details')].filter(d => d.open).map(d => d.dataset.sec));
+  const isOpen = (t, dflt) => openSecs.size ? openSecs.has(t) : dflt;
+  const s = state;
+  const html = [
+    section('Kepala dokumen', [
+      text('Brand / nama usaha', 'brand'), text('Judul', 'title'), area('Subjudul', 'subtitle'),
+      text('Teks header (pojok kanan atas)', 'header'), text('Teks footer (pojok kanan bawah)', 'footer'),
+      `<p class="hint">Di footer, {halaman} diganti nomor halaman dan {total_halaman} diganti jumlah halaman.</p>`,
+    ].join(''), isOpen('Kepala dokumen', true)),
+
+    section('Detail invoice', s.meta.map((m, i) => `<div class="card">
+        <div class="card-head"><b>Field ${i + 1}</b>${rowBtns('meta', i, s.meta.length, true)}</div>
+        <div class="pair">${text('Label', `meta.${i}.label`)}
+          <label class="f" style="flex:0 0 96px"><span>Jenis</span><select data-path="meta.${i}.type" data-rerender>
+            <option value="text" ${m.type !== 'date' ? 'selected' : ''}>Teks</option><option value="date" ${m.type === 'date' ? 'selected' : ''}>Tanggal</option></select></label></div>
+        ${m.type === 'date'
+          ? `<label class="f"><span>Tanggal</span><input type="date" data-path="meta.${i}.value" value="${esc(m.value)}"></label>`
+          : text('Isi', `meta.${i}.value`)}
+      </div>`).join('') + `<button data-act="add:meta">+ Tambah field</button>`, isOpen('Detail invoice', true)),
+
+    section('Klien & penerbit', [
+      text('Label klien', 'billTo.label'), text('Nama klien', 'billTo.name'), area('Alamat & kontak klien', 'billTo.detail'),
+      text('Label penerbit', 'issuer.label'), text('Nama penerbit', 'issuer.name'), area('Alamat & kontak penerbit', 'issuer.detail'),
+    ].join(''), isOpen('Klien & penerbit', true)),
+
+    section('Item & harga',
+      `<div class="pair">${text('Kolom 1', 'cols.0')}${text('Kolom 2', 'cols.1')}${text('Kolom 3', 'cols.2')}</div>` +
+      s.items.map((it, i) => itemCard(it, i, s.items.length)).join('') +
+      `<button data-act="add:items">+ Tambah item</button>`, isOpen('Item & harga', true)),
+
+    section('Total, diskon & pajak', [
+      text('Label total', 'totalLabel'),
+      `<div class="pair">${text('Label diskon', 'discountLabel')}${moneyIn('Diskon (nominal)', 'discount')}</div>`,
+      `<div class="pair">${text('Label pajak', 'taxLabel')}${numIn('Pajak (%)', 'taxPercent')}</div>`,
+      text('Label subtotal', 'subtotalLabel'),
+      `<p class="hint">Baris subtotal, diskon dan pajak hanya muncul di invoice jika diskon atau pajak diisi.</p>`,
+      `<div class="pair">${text('Simbol mata uang', 'currency')}${text('Kata mata uang (terbilang)', 'currencyWord')}</div>`,
+      text('Awalan terbilang', 'terbilangPrefix'),
+      `<label class="check"><input type="checkbox" data-path="terbilangAuto" data-rerender ${s.terbilangAuto ? 'checked' : ''}> Terbilang otomatis dari total</label>`,
+      s.terbilangAuto ? '' : text('Teks terbilang (kosongkan untuk menyembunyikan)', 'terbilangText'),
+    ].join(''), isOpen('Total, diskon & pajak', false)),
+
+    section('Informasi pembayaran', text('Judul bagian', 'payTitle') +
+      s.pay.map((r, i) => `<div class="pair">${text('Label', `pay.${i}.label`)}${text('Isi', `pay.${i}.value`)}${rowBtns('pay', i, s.pay.length, false)}</div>`).join('') +
+      `<button data-act="add:pay">+ Tambah baris</button>`, isOpen('Informasi pembayaran', false)),
+
+    section('Catatan', text('Judul bagian', 'notesTitle') +
+      s.notes.map((r, i) => `<div class="pair">${area(`Paragraf ${i + 1}`, `notes.${i}`, 4)}${rowBtns('notes', i, s.notes.length, false)}</div>`).join('') +
+      `<button data-act="add:notes">+ Tambah paragraf</button>`, isOpen('Catatan', false)),
+
+    section('Penutup & tanda tangan', [
+      text('Salam penutup', 'closing'), text('Nama penanda tangan', 'signName'), text('Jabatan / keterangan', 'signRole'),
+    ].join(''), isOpen('Penutup & tanda tangan', false)),
+
+    section('Warna', `<div class="pair">
+      <label class="f"><span>Warna aksen</span><input type="color" data-path="accent" value="${esc(s.accent)}"></label>
+      <label class="f"><span>Warna gelap (judul & kepala tabel)</span><input type="color" data-path="dark" value="${esc(s.dark)}"></label></div>`, isOpen('Warna', false)),
+  ].join('');
+  $('#form').innerHTML = html;
+}
+
+// ---------- preview ----------
+function renderPreview() {
+  const s = state, t = totals();
+  const p = (cls, v) => v ? `<p class="${cls}">${esc(v)}</p>` : '';
+  const terb = s.terbilangAuto ? `${terbilang(t.total)} ${s.currencyWord}`.trim() : s.terbilangText;
+  const showSums = t.discount || t.tax;
+  const party = o => `<div>${p('lbl', o.label)}${p('name', o.name)}${p('det', o.detail)}</div>`;
+
+  const sheet = $('#sheet');
+  sheet.style.setProperty('--a', s.accent);
+  sheet.style.setProperty('--d', s.dark);
+  sheet.innerHTML = `
+    <div class="run-head">${esc(s.header)}</div>
+    ${p('brand', s.brand)}
+    ${s.title ? `<h1>${esc(s.title)}</h1>` : ''}
+    ${p('sub', s.subtitle)}
+    ${s.meta.length ? `<div class="meta">${s.meta.map(m => `<div>${p('lbl', m.label)}<p class="val">${esc(m.type === 'date' ? fmtDate(m.value) : m.value)}</p></div>`).join('')}</div>` : ''}
+    <div class="parties">${party(s.billTo)}${party(s.issuer)}</div>
+    <table class="items">
+      <colgroup><col style="width:56.2%"><col style="width:22%"><col style="width:21.8%"></colgroup>
+      <thead><tr>${s.cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+      <tbody>${s.items.map(it => `<tr><td>${esc(it.desc)}</td><td>${esc(itemBasis(it))}</td><td>${money(itemAmount(it))}</td></tr>`).join('')}</tbody>
+    </table>
+    ${showSums ? `<div class="sums">
+      <span>${esc(s.subtotalLabel)}</span><span>${money(t.subtotal)}</span>
+      ${t.discount ? `<span>${esc(s.discountLabel)}</span><span>${money(-t.discount)}</span>` : ''}
+      ${t.tax ? `<span>${esc(s.taxLabel)} ${fmtDec(s.taxPercent)}%</span><span>${money(t.tax)}</span>` : ''}
+    </div>` : ''}
+    <p class="total"><span>${esc(s.totalLabel)}</span><span>${money(t.total)}</span></p>
+    ${terb ? `<p class="terbilang">${esc(s.terbilangPrefix)}${esc(terb)}</p>` : ''}
+    ${s.pay.length ? `${s.payTitle ? `<h2>${esc(s.payTitle)}</h2>` : ''}<table class="pay">${s.pay.map(r => `<tr><td>${esc(r.label)}</td><td>${esc(r.value)}</td></tr>`).join('')}</table>` : ''}
+    ${s.notes.some(n => n.trim()) ? `${s.notesTitle ? `<h2>${esc(s.notesTitle)}</h2>` : ''}${s.notes.map(n => p('', n)).join('')}` : ''}
+    <div class="sign">${p('', s.closing)}<div class="gap"></div>${s.signName ? `<p><b>${esc(s.signName)}</b></p>` : ''}${p('role', s.signRole)}</div>
+    <div class="run-foot">${esc(footerText(1, 1))}</div>`;
+
+  state.items.forEach((it, i) => { const el = document.querySelector(`[data-amt="${i}"]`); if (el) el.textContent = money(itemAmount(it)); });
+  // rasio tinggi/lebar tidak terpengaruh zoom
+  $('#warn').hidden = sheet.offsetHeight / sheet.offsetWidth <= 297 / 210 + 0.005;
+  const no = (s.meta[0]?.value || '').replace(/[\[\]]/g, '').replace(/[\/\\:]/g, '-').trim();
+  document.title = no ? `Invoice ${no}` : 'Invoice Generator';
+}
+
+function fitSheet() {
+  const pane = $('#preview'), cs = getComputedStyle(pane);
+  const avail = pane.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  $('#sheet').style.zoom = Math.min(1, avail / (210 * 96 / 25.4));
+}
+
+// ---------- events ----------
+const form = $('#form');
+form.addEventListener('input', e => {
+  const el = e.target, path = el.dataset.path;
+  if (!path) return;
+  let v = el.type === 'checkbox' ? el.checked : el.value;
+  if (el.dataset.type === 'money') v = parseMoney(v);
+  else if (el.dataset.type === 'num') v = parseFloat(v) || 0;
+  set(state, path, v);
+  if (path.endsWith('.type') && path.startsWith('meta.')) set(state, path.replace('.type', '.value'), v === 'date' ? todayISO() : '');
+  if ('rerender' in el.dataset) renderEditor();
+  renderPreview(); save();
+});
+form.addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.type === 'money') el.value = fmtNum(get(state, el.dataset.path));
+});
+form.addEventListener('click', e => {
+  const btn = e.target.closest('[data-act]');
+  if (!btn) return;
+  const [act, list, idx] = btn.dataset.act.split(':'), arr = state[list], i = +idx;
+  if (act === 'add') arr.push(NEW_ROW[list]());
+  else if (act === 'del') arr.splice(i, 1);
+  else if (act === 'up') [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+  else if (act === 'down') [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]];
+  renderEditor(); renderPreview(); save();
+});
+
+// ---------- PDF ----------
+const footerText = (page, pages) => state.footer.replace(/\{halaman\}/g, page).replace(/\{total_halaman\}/g, pages);
+const PDF_FONTS = { Lato: { normal: 'Lato-Regular.ttf', bold: 'Lato-Bold.ttf', italics: 'Lato-Italic.ttf', bolditalics: 'Lato-Bold.ttf' } };
+const loadScript = src => new Promise((ok, fail) => {
+  const el = document.createElement('script');
+  el.src = src; el.onload = ok; el.onerror = () => fail(new Error(src));
+  document.head.append(el);
+});
+let pdfReady = null;
+// pdfmake dan font dimuat saat pertama kali dipakai supaya halaman tetap ringan
+function ensurePdf() {
+  if (!pdfReady) pdfReady = Promise.all([loadScript('vendor/pdfmake.min.js'), loadScript('vendor/lato-vfs.js')]).catch(e => { pdfReady = null; throw e; });
+  return pdfReady;
+}
+
+// Ukuran dalam pt, mengikuti margin dan ukuran huruf template .docx
+function pdfDoc() {
+  const s = state, t = totals();
+  const A = s.accent, D = s.dark, T = '#26394a', M = '#5e7485', LINE = '#d9e5ed', FILL = '#f3f7fa';
+  const MX = 55.45, W = 595.28 - 2 * MX;
+  const none = { hLineWidth: () => 0, vLineWidth: () => 0 };
+  const pad = (l, tp, r, b) => ({ paddingLeft: () => l, paddingTop: () => tp, paddingRight: () => r, paddingBottom: () => b });
+  const widths = (fracs, px) => fracs.map(f => W * f - 2 * px);
+  const para = (v, style) => v ? { text: v, margin: [0, 0, 0, 5], ...style } : null;
+  const lbl = v => para(v, { bold: true, fontSize: 8, color: A });
+  const h2 = v => v ? { text: v, bold: true, fontSize: 10.5, color: A, margin: [0, 11, 0, 5] } : null;
+  const terb = s.terbilangAuto ? `${terbilang(t.total)} ${s.currencyWord}`.trim() : s.terbilangText;
+  const content = [
+    s.brand ? { text: s.brand, bold: true, fontSize: 9.5, color: D, margin: [0, 8, 0, 4] } : null,
+    s.title ? { text: s.title, bold: true, fontSize: 18, color: D, lineHeight: 1, margin: [0, 0, 0, 9] } : null,
+    s.subtitle ? { text: s.subtitle, fontSize: 8.5, color: M, margin: [0, 0, 0, 10] } : null,
+  ];
+
+  if (s.meta.length) {
+    const cells = s.meta.map(m => ({ fillColor: FILL, stack: [lbl(m.label), { text: m.type === 'date' ? fmtDate(m.value) : m.value, fontSize: 8.5, color: D }].filter(Boolean) }));
+    if (cells.length % 2) cells.push({ text: '', fillColor: FILL });
+    const body = [];
+    for (let i = 0; i < cells.length; i += 2) body.push(cells.slice(i, i + 2));
+    content.push({ table: { widths: widths([.485, .515], 6.5), body }, layout: { ...none, ...pad(6.5, 6, 6.5, 5.5) }, margin: [0, 0, 0, 14] });
+  }
+
+  const party = o => ({ stack: [lbl(o.label), para(o.name, { bold: true, fontSize: 10 }), para(o.detail, { fontSize: 8, color: M, margin: [0, 0, 0, 0] })].filter(Boolean) });
+  content.push({ table: { widths: widths([.5, .5], 5.5), body: [[party(s.billTo), party(s.issuer)]] }, layout: { ...none, ...pad(5.5, 5, 5.5, 5) }, margin: [0, 0, 0, 14] });
+
+  const itemWidths = widths([.562, .22, .218], 5.75);
+  itemWidths[0] -= 1.2; // dua garis tepi
+  content.push({
+    table: {
+      headerRows: 1, dontBreakRows: true, widths: itemWidths,
+      body: [
+        s.cols.map(c => ({ text: c, bold: true, fontSize: 8, color: '#ffffff', fillColor: D })),
+        ...s.items.map(it => [it.desc, itemBasis(it), money(itemAmount(it))].map(v => ({ text: v, fontSize: 8.5 }))),
+      ],
+    },
+    layout: {
+      hLineWidth: () => .6, hLineColor: () => LINE, vLineColor: () => LINE,
+      vLineWidth: (i, node) => (i === 0 || i === node.table.widths.length ? .6 : 0),
+      ...pad(5.75, 4.75, 5.75, 4.75),
+    },
+  });
+
+  if (t.discount || t.tax) {
+    const rows = [[s.subtotalLabel, money(t.subtotal)]];
+    if (t.discount) rows.push([s.discountLabel, money(-t.discount)]);
+    if (t.tax) rows.push([`${s.taxLabel} ${fmtDec(s.taxPercent)}%`, money(t.tax)]);
+    content.push({
+      table: { widths: ['*', 'auto'], body: rows.map(r => r.map(v => ({ text: v, alignment: 'right', fontSize: 8.5 }))) },
+      layout: { ...none, paddingLeft: i => (i === 1 ? 18 : 0), paddingRight: () => 0, paddingTop: () => 1, paddingBottom: () => 1 },
+      margin: [0, 7, 0, 0],
+    });
+  }
+
+  content.push(
+    { text: `${s.totalLabel}      ${money(t.total)}`, bold: true, fontSize: 15, color: A, alignment: 'right', margin: [0, 6, 0, 5] },
+    terb ? { text: s.terbilangPrefix + terb, italics: true, fontSize: 8, alignment: 'right', margin: [0, 0, 0, 5] } : null,
+  );
+
+  if (s.pay.length) content.push(h2(s.payTitle), {
+    table: { widths: [W * .215 - 8, W * .785 - 8], body: s.pay.map(r => [{ text: r.label, bold: true, color: A }, { text: r.value }]) },
+    layout: { ...none, ...pad(4, 2.5, 4, 2.5) }, fontSize: 8,
+  });
+
+  const notes = s.notes.filter(n => n.trim());
+  if (notes.length) content.push(h2(s.notesTitle), ...notes.map(n => para(n)));
+
+  content.push({
+    unbreakable: true, margin: [0, 14, 0, 0],
+    stack: [para(s.closing), { text: '', margin: [0, 0, 0, 19] }, para(s.signName, { bold: true }), para(s.signRole, { fontSize: 8, color: M })].filter(Boolean),
+  });
+
+  return {
+    pageSize: 'A4', pageMargins: [MX, 63.35, MX, 50.4],
+    info: { title: document.title },
+    defaultStyle: { font: 'Lato', fontSize: 9, color: T, lineHeight: 1.12 },
+    header: { text: s.header, bold: true, fontSize: 7.5, color: A, alignment: 'right', margin: [MX, 25.9, MX, 0] },
+    footer: (page, pages) => ({ text: footerText(page, pages), fontSize: 7, color: M, alignment: 'right', margin: [MX, 15, MX, 0] }),
+    content: content.filter(Boolean),
+  };
+}
+
+$('#btnPdf').addEventListener('click', async e => {
+  const btn = e.currentTarget;
+  btn.disabled = true; btn.textContent = 'Menyiapkan PDF…';
+  try {
+    await ensurePdf();
+    const name = document.title.replace(/\s+/g, '_') + '.pdf';
+    await new Promise(done => pdfMake.createPdf(pdfDoc(), null, PDF_FONTS, window.LATO_VFS).download(name, done));
+    btn.textContent = 'Unduh PDF';
+  } catch (err) {
+    console.error(err);
+    btn.textContent = 'Gagal membuat PDF, coba lagi';
+    setTimeout(() => btn.textContent = 'Unduh PDF', 3000);
+  }
+  btn.disabled = false;
+});
+$('#btnExport').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }));
+  a.download = document.title.replace(/\s+/g, '_') + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+$('#btnImport').addEventListener('click', () => $('#fileImport').click());
+$('#fileImport').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data || !Array.isArray(data.items)) throw new Error();
+    state = Object.assign(makeDefault(), data);
+    renderEditor(); renderPreview(); save();
+  } catch (err) {
+    $('#btnImport').textContent = 'File tidak valid';
+    setTimeout(() => $('#btnImport').textContent = 'Impor data', 2500);
+  }
+  e.target.value = '';
+});
+let resetArmed = null;
+$('#btnReset').addEventListener('click', e => {
+  if (!resetArmed) {
+    e.target.textContent = 'Klik lagi untuk reset';
+    resetArmed = setTimeout(() => { resetArmed = null; e.target.textContent = 'Reset ke template'; }, 3000);
+    return;
+  }
+  clearTimeout(resetArmed); resetArmed = null; e.target.textContent = 'Reset ke template';
+  state = makeDefault();
+  renderEditor(); renderPreview(); save();
+});
+
+new ResizeObserver(fitSheet).observe($('#preview'));
+renderEditor(); fitSheet(); renderPreview();
+document.fonts?.ready.then(renderPreview);
+</script>
+</body>
+</html>
